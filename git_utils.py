@@ -168,9 +168,12 @@ def rename_folder(old_name: str, new_name: str) -> str:
 
 def rename_path_in_repo(repo_folder: str, old_rel: str, new_rel: str) -> str:
     """
-    Rename any file or subfolder inside a repo by relative path.
-    e.g. repo_folder="bad", old_rel="badmunda.py", new_rel="newname.py"
-    or   old_rel="subdir/file.py", new_rel="subdir/renamed.py"
+    Smart rename: renames a file/folder AND replaces all occurrences of
+    old name inside .py files (imports, paths, strings).
+    
+    e.g. repo_folder="Demo", old_rel="Bad", new_rel="Jass"
+    → renames Demo/Bad/ → Demo/Jass/
+    → replaces "Bad" with "Jass" in all .py files inside Demo/
     """
     repo_folder = repo_folder.strip()
     old_rel     = old_rel.strip().lstrip("/\\")
@@ -191,13 +194,41 @@ def rename_path_in_repo(repo_folder: str, old_rel: str, new_rel: str) -> str:
     if os.path.exists(new_path):
         return f"❌ `{new_rel}` already exists inside `{repo_folder}`."
 
-    # Create parent dirs if needed (e.g. moving to a new subfolder)
-    os.makedirs(os.path.dirname(new_path), exist_ok=True)
+    # ── Step 1: Replace old name in ALL .py file contents ─────────────────
+    # Get just the last part for text replacement (e.g. "Bad" from "subdir/Bad")
+    old_basename = os.path.basename(old_rel)
+    new_basename = os.path.basename(new_rel)
+    text_changed = []
+    if old_basename != new_basename:
+        for root, dirs, files in os.walk(repo_dir):
+            dirs[:] = [d for d in dirs if d != ".git"]
+            for fname in files:
+                if not fname.endswith(".py"):
+                    continue
+                fpath = os.path.join(root, fname)
+                try:
+                    content = open(fpath, "r", errors="ignore").read()
+                    if old_basename in content:
+                        open(fpath, "w").write(content.replace(old_basename, new_basename))
+                        text_changed.append(os.path.relpath(fpath, repo_dir))
+                except Exception:
+                    pass
+
+    # ── Step 2: Rename the actual file/folder ─────────────────────────────
+    os.makedirs(os.path.dirname(new_path) if os.path.dirname(new_path) else repo_dir, exist_ok=True)
     try:
         os.rename(old_path, new_path)
     except Exception as e:
         return f"❌ Rename failed: {e}"
-    return f"✅ Renamed `{repo_folder}/{old_rel}` → `{repo_folder}/{new_rel}`"
+
+    # ── Build result message ───────────────────────────────────────────────
+    msg = f"✅ Renamed `{repo_folder}/{old_rel}` → `{repo_folder}/{new_rel}`"
+    if text_changed:
+        msg += f"\n\n📝 Also replaced `{old_basename}` → `{new_basename}` in {len(text_changed)} file(s):\n"
+        msg += "\n".join(f"• `{f}`" for f in text_changed[:15])
+        if len(text_changed) > 15:
+            msg += f"\n_...and {len(text_changed)-15} more_"
+    return msg
 
 
 def clone_repo(repo_url: str, dest: str, token: str | None = None) -> tuple[bool, str]:
