@@ -29,6 +29,10 @@ def main_keyboard():
             InlineKeyboardButton("✏️ Replace Text",    callback_data="cmd_replace"),
         ],
         [
+            InlineKeyboardButton("📁 Rename Dir",      callback_data="cmd_rename_dir"),
+            InlineKeyboardButton("✂️ Rename Path",     callback_data="cmd_rename_path"),
+        ],
+        [
             InlineKeyboardButton("🌿 Branches",        callback_data="cmd_branches"),
             InlineKeyboardButton("👥 Collaborators",   callback_data="cmd_collabs"),
         ],
@@ -115,7 +119,9 @@ def folder_picker_kb(prefix: str):
     import git_utils as git
     folders = git.get_workspace_folders()
     if not folders:
-        return InlineKeyboardMarkup([[InlineKeyboardButton("❌ No folders", callback_data="go_home")]])
+        return InlineKeyboardMarkup([[
+            InlineKeyboardButton("❌ No folders — Clone a repo first", callback_data="cmd_clone")
+        ]])
     rows = []
     for i, f in enumerate(folders):
         rows.append([InlineKeyboardButton(f"📁 {f}", callback_data=f"{prefix}:{i}")])
